@@ -12,6 +12,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.IO.Ports;
 using Leap;
 
 namespace Pan_Tilt_Leap_Handler
@@ -22,9 +23,18 @@ namespace Pan_Tilt_Leap_Handler
     public partial class MainWindow : Window
     {
         long prevTime = 0;
+        int pitch = 0;
+        int yaw = 0;
+        byte[] bytestosend = new byte[3];
+        SerialPort serialPort = new SerialPort();
         public MainWindow()
         {
             InitializeComponent();
+
+            serialPort.BaudRate = 9600;
+            serialPort.PortName = "COM3";
+            serialPort.Open();
+
             Controller controller = new Controller();
 
             controller.Connect += OnServiceConnect;
@@ -39,36 +49,43 @@ namespace Pan_Tilt_Leap_Handler
 
         public void OnConnect(object sender, DeviceEventArgs args)
         {
-            Console.WriteLine("Connected");
+            
         }
 
         public void OnFrame(object sender, FrameEventArgs args)
         {
             // Get the most recent frame and report some basic information            
             Leap.Frame frame = args.frame;
-            if (prevTime + 1000000 < frame.Timestamp | prevTime == 0)
+            if (prevTime + 100000 < frame.Timestamp | prevTime == 0)
             {
-                Console.Clear();
-                Console.WriteLine(
-                  "Frame id: {0}, timestamp: {1}, hands: {2}",
-                  frame.Id, frame.Timestamp, frame.Hands.Count
-                );
-                foreach (Hand hand in frame.Hands)
-                {
-                    Console.WriteLine("  Hand id: {0}, palm position: {1}, fingers: {2}",
-                      hand.Id, hand.PalmPosition, hand.Fingers.Count);
-                    // Get the hand's normal vector and direction
-                    Leap.Vector normal = hand.PalmNormal;
-                    Leap.Vector direction = hand.Direction;
 
-                    // Calculate the hand's pitch, roll, and yaw angles
-                    Console.WriteLine(
-                      "  Hand pitch: {0} degrees, roll: {1} degrees, yaw: {2} degrees",
-                      direction.Pitch * 180.0f / (float)Math.PI,
-                      normal.Roll * 180.0f / (float)Math.PI,
-                      direction.Yaw * 180.0f / (float)Math.PI
-                    );
-                }
+                if (frame.Hands.Count != 0)
+                {
+                    //Pitch
+                    pitch = Convert.ToInt32((frame.Hands[0].Direction.Pitch * 180.0 / Math.PI) * 3.0) + 1080;
+                    bytestosend[0] = 0x02;
+                    bytestosend[1] = (byte)(0xFF & (pitch >> 8));
+                    bytestosend[2] = (byte) (0xFF & pitch);
+
+                    serialPort.Write(bytestosend, 0, bytestosend.Length);
+
+                    //Yaw
+                    yaw = Convert.ToInt32((frame.Hands[0].Direction.Yaw * 180.0 / Math.PI) * 3.0) + 1080;
+                    bytestosend[0] = 0x01;
+                    bytestosend[1] = (byte)(0xFF & (yaw >> 8));
+                    bytestosend[2] = (byte)(0xFF & yaw);
+
+                    serialPort.Write(bytestosend, 0, bytestosend.Length);
+                }                
+                Console.Write(
+                  "\rFrame id: {0}, timestamp: {1}, hands: {2}, pitch {3}\t yaw:{4}\t {5}            ",
+                  frame.Id, frame.Timestamp, frame.Hands.Count, pitch, yaw, bytestosend[2]
+                );
+
+                
+
+
+
                 prevTime = frame.Timestamp;
             }
         }
