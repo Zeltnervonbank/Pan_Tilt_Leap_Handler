@@ -5,8 +5,90 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Pan_Tilt_Leap_Handler"
         mc:Ignorable="d"
-        Title="MainWindow" Height="350" Width="525">
+        Title="Pan Tilt Manager" Height="430.8" Width="597" ResizeMode="NoResize" Closing="Window_Closing">
     <Grid>
-        
+        <Grid HorizontalAlignment="Left" Height="170" VerticalAlignment="Top" Width="249" Background="SteelBlue">
+            <Button HorizontalAlignment="Left" Margin="10,50,0,0" VerticalAlignment="Top" Width="50" Height="50" FontSize="24" Name="panPlusButton" Click="panPlusButton_Click">
+                <StackPanel>
+                    <Image Source="Plus.png" />
+                </StackPanel>
+            </Button>
+            <Label Content="Pan" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" FontSize="24"/>
+            <Button HorizontalAlignment="Left" Margin="70,50,0,0" VerticalAlignment="Top" Width="50" Height="50" Name="panMinusButton" Click="panMinusButton_Click">
+                <StackPanel>
+                    <Image Source="Minus.png" />
+                </StackPanel>
+            </Button>
+            <Label Content="Tilt" HorizontalAlignment="Left" Margin="130,10,0,0" VerticalAlignment="Top" FontSize="24"/>
+            <Button HorizontalAlignment="Left" Margin="130,50,0,0" VerticalAlignment="Top" Width="50" Height="50" FontSize="24" Name="tiltPlusButton" Click="tiltPlusButton_Click">
+                <StackPanel>
+                    <Image Source="Plus.png" />
+                </StackPanel>
+            </Button>
+            <Button HorizontalAlignment="Left" Margin="190,50,0,0" VerticalAlignment="Top" Width="50" Height="50" Name="tiltMinusButton" Click="tiltMinusButton_Click">
+                <StackPanel>
+                    <Image Source="Minus.png" />
+                </StackPanel>
+            </Button>
+            <TextBox HorizontalAlignment="Left" Height="37" Margin="93,105,0,0" TextWrapping="Wrap" Text="0" VerticalAlignment="Top" Width="147" FontSize="24" Name="offsetValueBox"/>
+            <Label Content="Offset:" HorizontalAlignment="Left" Margin="10,100,0,0" VerticalAlignment="Top" FontSize="24"/>
+        </Grid>
+        <Grid HorizontalAlignment="Left" Height="170" Margin="249,0,0,0" VerticalAlignment="Top" Width="289" Background="PowderBlue">
+            <ComboBox Margin="158,51,0,0" VerticalAlignment="Top" HorizontalAlignment="Left" Width="121" Height="50" Name="COMSelBox" DropDownOpened="COMSelBox_DropDownOpened" FontSize="24"/>
+            <Button Content="Connect" HorizontalAlignment="Left" Margin="12,51,0,0" VerticalAlignment="Top" Width="141" Height="50" Click="serialPortConnectButton_Click" Name="serialPortConnectButton" FontSize="24"/>
+            <ComboBox HorizontalAlignment="Left" Margin="158,106,0,0" VerticalAlignment="Top" Width="121" Height="50" Name="baudRateComboBox" FontSize="24"/>
+            <Label Content="UART" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" FontSize="24"/>
+            <Button Content="Disconnect" HorizontalAlignment="Left" Margin="12,106,0,0" VerticalAlignment="Top" Width="141" Height="50" Click="serialPortDisconnectButton_Click" Name="serialPortDisconnectButton" FontSize="24"/>
+        </Grid>
+        <Button Content="Home" HorizontalAlignment="Left" Margin="458,175,0,0" VerticalAlignment="Top" Width="80" Height="50" Name="homeButton" Click="homeButton_Click" FontSize="24"/>
+        <Grid HorizontalAlignment="Left" Height="183" VerticalAlignment="Top" Width="249" Background="Salmon" Margin="0,170,0,0">
+            <Label Content="Pan" HorizontalAlignment="Left" Margin="9,35,0,0" VerticalAlignment="Top" FontSize="24"/>
+            <Label Content="Tilt" HorizontalAlignment="Left" Margin="129,35,0,0" VerticalAlignment="Top" FontSize="24"/>
+            <TextBox HorizontalAlignment="Left" Height="37" Margin="9,76,0,0" TextWrapping="Wrap" Text="0" VerticalAlignment="Top" Width="100" FontSize="24" x:Name="panAngleBox" KeyDown="angleBox_KeyDown" GotKeyboardFocus="panAngleBox_GotKeyboardFocus"/>
+            <TextBox HorizontalAlignment="Left" Height="37" Margin="129,76,0,0" TextWrapping="Wrap" Text="0" VerticalAlignment="Top" Width="100" FontSize="24" x:Name="tiltAngleBox" KeyDown="angleBox_KeyDown" GotKeyboardFocus="tiltAngleBox_GotKeyboardFocus"/>
+            <Label Content="Set angles" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" FontSize="24"/>
+        </Grid>
+        <Button Content="Set" HorizontalAlignment="Left" Margin="9,293,0,0" Height="50" VerticalAlignment="Top" Width="75" x:Name="setAngleButton" Click="setAngleButton_Click" FontSize="24"/>
+        <TextBox HorizontalAlignment="Left" Height="23" Margin="255,328,0,0" TextWrapping="Wrap" Text="" VerticalAlignment="Top" Width="283" Name="logBox"/>
+        <Slider HorizontalAlignment="Left" Margin="138,365,0,0" VerticalAlignment="Top" Width="265" Name="panSlider" ValueChanged="panSlider_ValueChanged" SmallChange="1" RenderTransformOrigin="0.5,0.5">
+            <Slider.RenderTransform>
+                <TransformGroup>
+                    <ScaleTransform ScaleX="2" ScaleY="2"/>
+                    <SkewTransform/>
+                    <RotateTransform/>
+                    <TranslateTransform/>
+                </TransformGroup>
+            </Slider.RenderTransform>
+        </Slider>
+        <Slider HorizontalAlignment="Left" Margin="553,94,0,0" VerticalAlignment="Top" Height="187" x:Name="tiltSlider" ValueChanged="tiltSlider_ValueChanged" SmallChange="1" Orientation="Vertical" RenderTransformOrigin="0.5,0.5">
+            <Slider.RenderTransform>
+                <TransformGroup>
+                    <ScaleTransform ScaleX="2" ScaleY="2"/>
+                    <SkewTransform/>
+                    <RotateTransform/>
+                    <TranslateTransform/>
+                </TransformGroup>
+            </Slider.RenderTransform>
+        </Slider>
+        <CheckBox Content="Leap enabled" HorizontalAlignment="Left" Margin="296,181,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.5,0.5" Name="leapEnabledCheck" Click="leapEnabledCheck_Click">
+            <CheckBox.RenderTransform>
+                <TransformGroup>
+                    <ScaleTransform ScaleX="2" ScaleY="2"/>
+                    <SkewTransform/>
+                    <RotateTransform/>
+                    <TranslateTransform/>
+                </TransformGroup>
+            </CheckBox.RenderTransform>
+        </CheckBox>
+        <CheckBox Content="Reset mode" HorizontalAlignment="Left" Margin="292,215,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.5,0.5" x:Name="resetModeCheck" Click="resetModeCheck_Click" IsChecked="True">
+            <CheckBox.RenderTransform>
+                <TransformGroup>
+                    <ScaleTransform ScaleX="2" ScaleY="2"/>
+                    <SkewTransform/>
+                    <RotateTransform/>
+                    <TranslateTransform/>
+                </TransformGroup>
+            </CheckBox.RenderTransform>
+        </CheckBox>
     </Grid>
 </Window>
