@@ -16,6 +16,8 @@ using System.IO.Ports;
 using System.IO;
 using Leap;
 using System.Threading;
+using Microsoft.Win32;
+using System.Timers;
 
 namespace Pan_Tilt_Leap_Handler
 {
@@ -32,6 +34,11 @@ namespace Pan_Tilt_Leap_Handler
         byte[] bytestosend = new byte[3];
         SerialPort serialPort = new SerialPort();
         Controller controller = new Controller();
+
+        string[] pathLines;
+        List<List<pathCommand>> commandList = new List<List<pathCommand>>();
+        int pathIndex = 0;
+        bool pathFollow = false;
         
         string rootDir = AppDomain.CurrentDomain.BaseDirectory;
         int panMax = 0;
@@ -41,8 +48,26 @@ namespace Pan_Tilt_Leap_Handler
         int panCurr = 0;
         int tiltCurr = 0;
 
-        string aPos = "A: ";
-        string bPos = "B: ";
+        int expectedPan = 2048;
+        int expectedTilt = 2048;
+        
+        List<string> logLines = new List<string>();
+
+        System.Timers.Timer pathTimer = new System.Timers.Timer(10);
+
+        public struct pathCommand
+        {
+            public byte cmd, hDat, lDat;
+            public int delay;
+            
+            public pathCommand(byte Cmd, byte HDat, byte LDat, int Delay)
+            {
+                cmd = Cmd;
+                hDat = HDat;
+                lDat = LDat;
+                delay = Delay;
+            }
+        }
 
         public MainWindow()
         {
@@ -79,44 +104,42 @@ namespace Pan_Tilt_Leap_Handler
         }
 
         private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
-        {            
+        {
             /*try
-            {
+            {*/
                 SerialPort sp = (SerialPort)sender;
-
-                byte[] receivedBytes = Encoding.ASCII.GetBytes(sp.ReadExisting());
-                for (int i = 0; i < receivedBytes.Length; i++)
+                if (sp.BytesToRead >= 3)
                 {
-                    if (receivedBytes[i] == 97)
+                    byte[] receivedBytes = new byte[3];
+                    while (true)
                     {
-                        int j = (receivedBytes[i + 1] << 8) + receivedBytes[i + 2];
-                        Console.WriteLine("A: " + j);
-                        aPos = "A: " + j;
+                        byte firstByte = (byte)sp.ReadByte();
+                        if (firstByte == 0x1E || firstByte == 0x1F || firstByte == 0xFF)
+                        {
+                            receivedBytes[0] = firstByte;
+                            receivedBytes[1] = (byte)sp.ReadByte();
+                            receivedBytes[2] = (byte)sp.ReadByte();
+                            break;
+                        }
                     }
-                    if (receivedBytes[i] == 98)
+
+                    int pos = (receivedBytes[1] << 8) + receivedBytes[2];
+                    if (receivedBytes[0] == 0x1E)
                     {
-                        int j = (receivedBytes[i + 1] << 8) + receivedBytes[i + 2];
-                        Console.WriteLine("B: " + j);
-                        bPos = "B: " + j;
+                        panCurr = pos;
                     }
-                }                
-            }
+                    else if (receivedBytes[0] == 0x1F)
+                    {
+                        tiltCurr = pos;
+                    }
+                    string s = string.Format("{0} {1} {2} - {3} - {4}", receivedBytes[0], receivedBytes[1], receivedBytes[2], pos, DateTime.Now);
+                    logLines.Add(s);
+                }
+            /*}
             catch(Exception ex)
-            {
-                Application.Current.Dispatcher.Invoke(new ThreadStart(() =>
-                {
-                    MainWindow window = Application.Current.MainWindow as MainWindow;
-                    window.logBox.Text = ex.Message;
-                }));
-            }
-
-            Application.Current.Dispatcher.Invoke(new ThreadStart(() =>
-            {
-                MainWindow window = Application.Current.MainWindow as MainWindow;
-                window.aPosLabel.Content = aPos;
-                window.bPosLabel.Content = bPos;
-            }));*/
-
+            {                
+                updateLogBox(ex.Message);
+            }*/
         }
         public void homeRobot(bool resetGUI)
         {
@@ -318,25 +341,6 @@ namespace Pan_Tilt_Leap_Handler
                 sendUART(0x02, (byte)(0xFF & (pitchOffset >> 8)), (byte)(0xFF & pitchOffset));
             }
         }
-
-        /*private void sendPosButton_Click(object sender, RoutedEventArgs e)
-        {
-            if(!sendPosButtonEnabled)
-            {
-                sendUART(0x0E, 0x00, 0x00);
-
-                sendPosButtonEnabled = true;
-                sendPosButton.Content = "Sending Pos";
-            }
-            else
-            {
-                sendUART(0x0F, 0x00, 0x00);
-
-                sendPosButtonEnabled = false;
-                sendPosButton.Content = "Not Sending Pos";
-            }
-        }*/
-
         private void panSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             updatePanAngleBox(Convert.ToInt32(panSlider.Value).ToString());
@@ -353,6 +357,7 @@ namespace Pan_Tilt_Leap_Handler
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            File.WriteAllLines(rootDir + "\\Uartlog.txt", logLines);
             serialPort.Close();
             controller.StopConnection();
             Application.Current.Shutdown();
@@ -401,6 +406,14 @@ namespace Pan_Tilt_Leap_Handler
                 window.logBox.Text = newVal;
             }));
         }
+        private void updateProgressBar(int val)
+        {
+            Application.Current.Dispatcher.Invoke(new ThreadStart(() =>
+            {
+                MainWindow window = Application.Current.MainWindow as MainWindow;
+                window.pathProgressBar.Value = val;
+            }));
+        }
         private void updateSliders(double panVal, double tiltVal)
         {
             Application.Current.Dispatcher.Invoke(new ThreadStart(() =>
@@ -427,6 +440,195 @@ namespace Pan_Tilt_Leap_Handler
         private void tiltAngleBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
         {
             tiltAngleBox.SelectAll();
+        }
+
+        private void openPathButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog dialog = new OpenFileDialog();
+            if (dialog.ShowDialog() == true)
+            {
+                pathLines = File.ReadAllLines(dialog.FileName);
+                updateLogBox(string.Format("Loaded {0} lines from path file.", pathLines.Length));
+                foreach(string line in pathLines)
+                {
+                    commandList.AddRange(decodeLine(line));
+                }
+                pathProgressBar.Maximum = commandList.Count;
+            }
+            pathIndex = 0;            
+        }
+
+        private byte[] hexConvert(int i)
+        {
+            return new byte[] { (byte)(0xFF & (i >> 8)), (byte)(0xFF & i) };
+        }
+        private void followPathButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!pathFollow)
+            {
+                pathFollow = true;
+                sendUART(0x0E, 0x00, 0x00);
+                pathTimer.Elapsed += PathTimer_Elapsed;
+                pathTimer.Start();
+            }
+        }
+
+        private void PathTimer_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            pathTimer.Stop(); //Stop the timer while executing
+            if(pathIndex == commandList.Count) //If at last command
+            {
+                pathIndex = 0; //Reset index
+                pathFollow = false; //Reenable button
+                updateProgressBar(pathIndex); //Reset progress bar
+                return; //Break out without restarting timer
+            }
+            //If within 5 steps of expected position, or if index == 0
+            if ((Math.Abs(panCurr - expectedPan) <= 5 && Math.Abs(tiltCurr - expectedTilt) <= 5) || pathIndex == 0)
+            {
+                foreach (pathCommand p in commandList[pathIndex]) //For each movement in the command
+                {
+                    if (p.cmd != 0) //If command isn't a delay
+                    {
+                        sendUART(p.cmd, p.hDat, p.lDat); //Send that command over UART
+                        switch (p.cmd)
+                        {
+                            case 1: //If pan movement set expected pan location
+                                expectedPan = ((p.hDat << 8) + p.lDat) + 2048 - 1080;
+                                break;
+                            case 2: //If tilt movement set expected tilt location
+                                expectedTilt = ((p.hDat << 8) + p.lDat) + 2048 - 1080;
+                                break;
+                            case 3: //If home movement set expected locations
+                                expectedPan = expectedTilt = 2048;
+                                break;
+                        }                        
+                    }
+                    if (p.delay == 0) //If the command's delay was 0
+                    {
+                        pathTimer.Interval = 10; //Insert default delay
+                    }
+                    else //If the command had a delay value
+                    {
+                        pathTimer.Interval = p.delay; //Set that delay value
+                    }
+                }
+                pathIndex++; //Increment the index
+                updateProgressBar(pathIndex); //Update the progress bar to new index value
+            }
+            //Restart timer, this is the only thing that happens if none of the above apply
+            //This happens if the system is still moving
+            pathTimer.Start(); 
+        }
+        private pathCommand packCommand(byte cmd, int pos, int delay)
+        {
+            pathCommand pCommand = new pathCommand();
+            pCommand.cmd = cmd;
+            byte[] bytes = hexConvert(pos + 1080);
+            pCommand.hDat = bytes[0];
+            pCommand.lDat = bytes[1];
+            pCommand.delay = delay;
+            return pCommand;
+        }
+
+        private List<List<pathCommand>> decodeLine(string line)
+        {
+            string[] words = line.Split(' '); //Splits the line into "words" separated by spaces
+            List<List<pathCommand>> command = new List<List<pathCommand>>(); //Creates new empty list
+            if (words[0].ToLower() == "mov") //If line operator was move
+            {
+
+                int panAngle = (Convert.ToInt32(words[1]) * 3); //Get the pan angle 
+                int tiltAngle = (Convert.ToInt32(words[2]) * 3); //Get the tilt angle
+
+                List<pathCommand> moveCommand = new List<pathCommand>(); //Make new list of movements
+                moveCommand.Add(packCommand(0x01, panAngle, 0)); //Add pan movement
+                moveCommand.Add(packCommand(0x02, tiltAngle, 0)); //Add tilt movement
+                command.Add(moveCommand); //Adds the movements to the command list
+            }
+            else if (words[0].ToLower() == "slp") //If line operator was sleep
+            {
+                int delay = Convert.ToInt32(words[1]); //Get the delay value from word list
+                command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x00, -1080, delay) })); //Add command to list
+            }
+            else if (words[0].ToLower() == "smth") //If line operator was smooth
+            {
+                //Read variables from line
+                //Beginning and end angles converted to steps
+                double x1 = Convert.ToDouble(words[1]) * 3.0;
+                double x2 = Convert.ToDouble(words[2]) * 3.0;
+                double y1 = Convert.ToDouble(words[3]) * 3.0;
+                double y2 = Convert.ToDouble(words[4]) * 3.0;
+
+                //Stepsize and delay between steps
+                int stepSize = Convert.ToInt32(words[5]);
+                int delay = Convert.ToInt32(words[6]);
+
+                //Equation variables
+                double numerator;
+                double denominator;
+                double slope;
+                double b;
+
+                if (Math.Abs((int)x1 - (int)x2) > Math.Abs((int)y1 - (int)y2)) //If X movement is larger than Y movement
+                {
+                    //Calculate equation
+                    numerator = y2 - y1;
+                    denominator = x2 - x1;
+
+                    slope = numerator / denominator;
+                    b = -(slope * x1 - y1);
+
+                    if (x1 < x2) //If going from low value to high
+                    {
+                        for (int i = (int)x1; i <= (int)x2; i += stepSize)
+                        {
+                            int yStep = (int)(slope * i + b);
+                            command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, i, 10), packCommand(0x02, yStep, 10) }));
+                        }
+                    }
+                    else if (x1 > x2) //If going from high value to low
+                    {
+                        for (int i = (int)x1; i >= (int)x2; i -= stepSize)
+                        {
+                            int yStep = (int)(slope * i + b);
+                            command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, i, 10), packCommand(0x02, yStep, 10) }));
+                        }
+                    }
+                }
+                else //If Y movement is larger than X movement
+                {
+                    //Calculate transposed equation
+                    numerator = x2 - x1;
+                    denominator = y2 - y1;
+
+                    slope = numerator / denominator;
+                    b = -(slope * y1 - x1);
+
+                    if (y1 < y2) //If going from low value to high
+                    {
+                        for (int i = (int)y1; i <= (int)y2; i += stepSize)
+                        {
+                            int xStep = (int)(slope * i + b);
+                            command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, xStep, 10), packCommand(0x02, i, 10) }));
+                        }
+                    }
+                    else if (y1 > y2) //If going from high value to low
+                    {
+                        for (int i = (int)y1; i >= (int)y2; i -= stepSize)
+                        {
+                            int xStep = (int)(slope * i + b);
+                            command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, xStep, 10), packCommand(0x02, i, 10) }));
+                        }
+                    }
+                }
+            }
+            else if (words[0].ToLower() == "home") //If line operator was home
+            {
+                command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x03, -1080, 0)}));
+            }
+            //Finally return the list of commands
+            return command;
         }
     }
 }

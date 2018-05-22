@@ -90,5 +90,8 @@
                 </TransformGroup>
             </CheckBox.RenderTransform>
         </CheckBox>
+        <Button Content="Open Path" HorizontalAlignment="Left" Margin="254,244,0,0" VerticalAlignment="Top" Width="129" Height="50" FontSize="24" Name="openPathButton" Click="openPathButton_Click"/>
+        <Button Content="Follow Path" HorizontalAlignment="Left" Margin="388,244,0,0" VerticalAlignment="Top" Width="150" Height="50" FontSize="24" Name="followPathButton" Click="followPathButton_Click"/>
+        <ProgressBar HorizontalAlignment="Left" Height="24" Margin="255,299,0,0" VerticalAlignment="Top" Width="283" Name="pathProgressBar"/>
     </Grid>
 </Window>

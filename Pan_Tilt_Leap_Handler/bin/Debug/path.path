@@ -1,0 +1,6 @@
+mov 50 50
+mov 49 50
+mov 48 50
+slp 500
+mov -50 -10
+home
