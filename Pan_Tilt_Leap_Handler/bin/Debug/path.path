@@ -2,9 +2,19 @@
 // slp syntax = slp milliseconds
 // home syntax = home
 // smooth syntax = smth x1 x2 y1 y2 stepsize delay
-mov 50 50
-mov 49 50
-mov 48 50
-slp 500
-mov -50 -10
+mov -51 0
+slp 2000
+smth -51 30 0 0 5 40
+slp 2000
+smth 30 30 0 30 1 30
+slp 2000
+smth 30 -51 30 30 5 40
+slp 2000
+smth -51 30 30 0 5 50
+slp 2000
+mov 0 0
+slp 2000
+mov 0 -360
+slp 2000
+mov 0 360
 home

@@ -18,6 +18,7 @@ using Leap;
 using System.Threading;
 using Microsoft.Win32;
 using System.Timers;
+using System.Diagnostics;
 
 namespace Pan_Tilt_Leap_Handler
 {
@@ -50,8 +51,13 @@ namespace Pan_Tilt_Leap_Handler
 
         int expectedPan = 2048;
         int expectedTilt = 2048;
+
+        int resendCounter = 0;
         
         List<string> logLines = new List<string>();
+        List<string> cmdLogLines = new List<string>();
+        List<string> timingLogLines = new List<string>();
+        Stopwatch st = new Stopwatch();
 
         System.Timers.Timer pathTimer = new System.Timers.Timer(10);
 
@@ -72,6 +78,7 @@ namespace Pan_Tilt_Leap_Handler
         public MainWindow()
         {
             InitializeComponent();
+            controller.StopConnection();
             string[] configLines = File.ReadAllLines(rootDir + "\\Config.cfg");
             panMax = Convert.ToInt32(configLines[0]);
             panMin = Convert.ToInt32(configLines[1]);
@@ -358,6 +365,8 @@ namespace Pan_Tilt_Leap_Handler
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             File.WriteAllLines(rootDir + "\\Uartlog.txt", logLines);
+            File.WriteAllLines(rootDir + "\\CmdLog.txt", cmdLogLines);
+            File.WriteAllLines(rootDir + "\\TimingLog.txt", timingLogLines);
             serialPort.Close();
             controller.StopConnection();
             Application.Current.Shutdown();
@@ -447,6 +456,7 @@ namespace Pan_Tilt_Leap_Handler
             OpenFileDialog dialog = new OpenFileDialog();
             if (dialog.ShowDialog() == true)
             {
+                commandList.Clear();
                 pathLines = File.ReadAllLines(dialog.FileName);
                 updateLogBox(string.Format("Loaded {0} lines from path file.", pathLines.Length));
                 foreach(string line in pathLines)
@@ -467,7 +477,7 @@ namespace Pan_Tilt_Leap_Handler
             if (!pathFollow)
             {
                 pathFollow = true;
-                sendUART(0x0E, 0x00, 0x00);
+                //sendUART(0x0E, 0x00, 0x00);
                 pathTimer.Elapsed += PathTimer_Elapsed;
                 pathTimer.Start();
             }
@@ -480,46 +490,70 @@ namespace Pan_Tilt_Leap_Handler
             {
                 pathIndex = 0; //Reset index
                 pathFollow = false; //Reenable button
-                updateProgressBar(pathIndex); //Reset progress bar
+                Task t = new Task(() => { updateProgressBar(pathIndex); }); //Reset progress bar
+                t.Start();
+                //sendUART(0x0F, 0x00, 0x00);
                 return; //Break out without restarting timer
             }
             //If within 5 steps of expected position, or if index == 0
-            if ((Math.Abs(panCurr - expectedPan) <= 5 && Math.Abs(tiltCurr - expectedTilt) <= 5) || pathIndex == 0)
-            {
-                foreach (pathCommand p in commandList[pathIndex]) //For each movement in the command
-                {
-                    if (p.cmd != 0) //If command isn't a delay
-                    {
-                        sendUART(p.cmd, p.hDat, p.lDat); //Send that command over UART
-                        switch (p.cmd)
-                        {
-                            case 1: //If pan movement set expected pan location
-                                expectedPan = ((p.hDat << 8) + p.lDat) + 2048 - 1080;
-                                break;
-                            case 2: //If tilt movement set expected tilt location
-                                expectedTilt = ((p.hDat << 8) + p.lDat) + 2048 - 1080;
-                                break;
-                            case 3: //If home movement set expected locations
-                                expectedPan = expectedTilt = 2048;
-                                break;
-                        }                        
-                    }
-                    if (p.delay == 0) //If the command's delay was 0
-                    {
-                        pathTimer.Interval = 10; //Insert default delay
-                    }
-                    else //If the command had a delay value
-                    {
-                        pathTimer.Interval = p.delay; //Set that delay value
-                    }
-                }
+            /*if ((Math.Abs(panCurr - expectedPan) <= 5 && Math.Abs(tiltCurr - expectedTilt) <= 5) || pathIndex == 0)
+            {*/
+                st.Stop();
+                timingLogLines.Add(String.Format("{0} - {1} - {2}", pathIndex, DateTime.Now, st.ElapsedMilliseconds));
+                st.Reset();
+                st.Start();
+                pathModeSendCommand(pathIndex);
                 pathIndex++; //Increment the index
-                updateProgressBar(pathIndex); //Update the progress bar to new index value
+                Task r = new Task(() => { updateProgressBar(pathIndex); }); ; //Update the progress bar to new index value
+                r.Start();
+            /*}
+            if (resendCounter == 100)
+            {
+                pathModeSendCommand(pathIndex - 1);
+                resendCounter = 0;
             }
+            else
+            {
+                resendCounter++;
+            }*/
             //Restart timer, this is the only thing that happens if none of the above apply
             //This happens if the system is still moving
             pathTimer.Start(); 
         }
+        private void pathModeSendCommand(int index)
+        {
+            foreach (pathCommand p in commandList[index]) //For each movement in the command
+            {
+                if (p.cmd != 0) //If command isn't a delay
+                {
+                    sendUART(p.cmd, p.hDat, p.lDat); //Send that command over UART
+                    switch (p.cmd)
+                    {
+                        case 1: //If pan movement set expected pan location
+                            expectedPan = ((p.hDat << 8) + p.lDat) + 2048 - 1080;
+                            break;
+                        case 2: //If tilt movement set expected tilt location
+                            expectedTilt = ((p.hDat << 8) + p.lDat) + 2048 - 1080;
+                            break;
+                        case 3: //If home movement set expected locations
+                            expectedPan = expectedTilt = 2048;
+                            break;
+                    }
+                }
+                if (p.delay == 0) //If the command's delay was 0
+                {
+                    pathTimer.Interval = 10; //Insert default delay
+                }
+                else //If the command had a delay value
+                {
+                    pathTimer.Interval = p.delay; //Set that delay value
+                }
+                string s = String.Format("{0} - {1}: {2} {3} {4} - {5}", pathIndex, DateTime.Now, p.cmd, p.hDat, p.lDat, p.delay);
+                cmdLogLines.Add(s);
+            }
+            updateLogBox(String.Format("Sent command nr {0}", index));
+        }
+
         private pathCommand packCommand(byte cmd, int pos, int delay)
         {
             pathCommand pCommand = new pathCommand();
@@ -563,10 +597,28 @@ namespace Pan_Tilt_Leap_Handler
                         double y1 = Convert.ToDouble(words[3]) * 3.0;
                         double y2 = Convert.ToDouble(words[4]) * 3.0;
 
-                        //Stepsize and delay between steps
-                        int stepSize = Convert.ToInt32(words[5]);
-                        int delay = Convert.ToInt32(words[6]);
 
+                        //Stepsize and delay between steps
+                        double stepSize = Convert.ToInt32(words[5]);
+                        int delay = Convert.ToInt32(words[6]);
+                        
+                        double dX = x2 - x1;
+                        double dY = y2 - y1;
+
+                        double moveDistance = Math.Sqrt(dX * dX + dY * dY);
+
+                        double stepCount = (moveDistance / stepSize);
+
+                        for(int i = 0; i <= (int)stepCount; i++)
+                        {
+                            int xPos = (int)((stepSize * (double)i) * (1.0 / moveDistance) * dX + x1);
+                            int yPos = (int)((stepSize * (double)i) * (1.0 / moveDistance) * dY + y1);
+                            command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, xPos, delay), packCommand(0x02, yPos, delay) }));
+                        }
+                        command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, (int)x2, delay), packCommand(0x02, (int)y2, delay) }));
+                        break;
+                        #region commented out
+                        /*
                         //Equation variables
                         double numerator;
                         double denominator;
@@ -625,7 +677,8 @@ namespace Pan_Tilt_Leap_Handler
                                 }
                             }
                         }
-                        break;
+                        break;*/
+#endregion
                     }
                 case "home":
                     {
