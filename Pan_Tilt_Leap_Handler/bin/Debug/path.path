@@ -1,3 +1,7 @@
+// mov syntax = mov pan tilt
+// slp syntax = slp milliseconds
+// home syntax = home
+// smooth syntax = smth x1 x2 y1 y2 stepsize delay
 mov 50 50
 mov 49 50
 mov 48 50

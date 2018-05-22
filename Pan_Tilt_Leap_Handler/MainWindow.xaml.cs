@@ -535,97 +535,107 @@ namespace Pan_Tilt_Leap_Handler
         {
             string[] words = line.Split(' '); //Splits the line into "words" separated by spaces
             List<List<pathCommand>> command = new List<List<pathCommand>>(); //Creates new empty list
-            if (words[0].ToLower() == "mov") //If line operator was move
+            switch (words[0].ToLower())
             {
-
-                int panAngle = (Convert.ToInt32(words[1]) * 3); //Get the pan angle 
-                int tiltAngle = (Convert.ToInt32(words[2]) * 3); //Get the tilt angle
-
-                List<pathCommand> moveCommand = new List<pathCommand>(); //Make new list of movements
-                moveCommand.Add(packCommand(0x01, panAngle, 0)); //Add pan movement
-                moveCommand.Add(packCommand(0x02, tiltAngle, 0)); //Add tilt movement
-                command.Add(moveCommand); //Adds the movements to the command list
-            }
-            else if (words[0].ToLower() == "slp") //If line operator was sleep
-            {
-                int delay = Convert.ToInt32(words[1]); //Get the delay value from word list
-                command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x00, -1080, delay) })); //Add command to list
-            }
-            else if (words[0].ToLower() == "smth") //If line operator was smooth
-            {
-                //Read variables from line
-                //Beginning and end angles converted to steps
-                double x1 = Convert.ToDouble(words[1]) * 3.0;
-                double x2 = Convert.ToDouble(words[2]) * 3.0;
-                double y1 = Convert.ToDouble(words[3]) * 3.0;
-                double y2 = Convert.ToDouble(words[4]) * 3.0;
-
-                //Stepsize and delay between steps
-                int stepSize = Convert.ToInt32(words[5]);
-                int delay = Convert.ToInt32(words[6]);
-
-                //Equation variables
-                double numerator;
-                double denominator;
-                double slope;
-                double b;
-
-                if (Math.Abs((int)x1 - (int)x2) > Math.Abs((int)y1 - (int)y2)) //If X movement is larger than Y movement
-                {
-                    //Calculate equation
-                    numerator = y2 - y1;
-                    denominator = x2 - x1;
-
-                    slope = numerator / denominator;
-                    b = -(slope * x1 - y1);
-
-                    if (x1 < x2) //If going from low value to high
+                case "mov":
                     {
-                        for (int i = (int)x1; i <= (int)x2; i += stepSize)
-                        {
-                            int yStep = (int)(slope * i + b);
-                            command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, i, 10), packCommand(0x02, yStep, 10) }));
-                        }
-                    }
-                    else if (x1 > x2) //If going from high value to low
-                    {
-                        for (int i = (int)x1; i >= (int)x2; i -= stepSize)
-                        {
-                            int yStep = (int)(slope * i + b);
-                            command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, i, 10), packCommand(0x02, yStep, 10) }));
-                        }
-                    }
-                }
-                else //If Y movement is larger than X movement
-                {
-                    //Calculate transposed equation
-                    numerator = x2 - x1;
-                    denominator = y2 - y1;
+                        int panAngle = (Convert.ToInt32(words[1]) * 3); //Get the pan angle 
+                        int tiltAngle = (Convert.ToInt32(words[2]) * 3); //Get the tilt angle
 
-                    slope = numerator / denominator;
-                    b = -(slope * y1 - x1);
+                        List<pathCommand> moveCommand = new List<pathCommand>(); //Make new list of movements
+                        moveCommand.Add(packCommand(0x01, panAngle, 0)); //Add pan movement
+                        moveCommand.Add(packCommand(0x02, tiltAngle, 0)); //Add tilt movement
+                        command.Add(moveCommand); //Adds the movements to the command list
+                        break;
+                    }
+                case "slp":
+                    {
+                        int delay = Convert.ToInt32(words[1]); //Get the delay value from word list
+                        command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x00, -1080, delay) })); //Add command to list
+                        break;
+                    }
+                case "smth":
+                    {
+                        //Read variables from line
+                        //Beginning and end angles converted to steps
+                        double x1 = Convert.ToDouble(words[1]) * 3.0;
+                        double x2 = Convert.ToDouble(words[2]) * 3.0;
+                        double y1 = Convert.ToDouble(words[3]) * 3.0;
+                        double y2 = Convert.ToDouble(words[4]) * 3.0;
 
-                    if (y1 < y2) //If going from low value to high
-                    {
-                        for (int i = (int)y1; i <= (int)y2; i += stepSize)
+                        //Stepsize and delay between steps
+                        int stepSize = Convert.ToInt32(words[5]);
+                        int delay = Convert.ToInt32(words[6]);
+
+                        //Equation variables
+                        double numerator;
+                        double denominator;
+                        double slope;
+                        double b;
+
+                        if (Math.Abs((int)x1 - (int)x2) > Math.Abs((int)y1 - (int)y2)) //If X movement is larger than Y movement
                         {
-                            int xStep = (int)(slope * i + b);
-                            command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, xStep, 10), packCommand(0x02, i, 10) }));
+                            //Calculate equation
+                            numerator = y2 - y1;
+                            denominator = x2 - x1;
+
+                            slope = numerator / denominator;
+                            b = -(slope * x1 - y1);
+
+                            if (x1 < x2) //If going from low value to high
+                            {
+                                for (int i = (int)x1; i <= (int)x2; i += stepSize)
+                                {
+                                    int yStep = (int)(slope * i + b);
+                                    command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, i, 10), packCommand(0x02, yStep, 10) }));
+                                }
+                            }
+                            else if (x1 > x2) //If going from high value to low
+                            {
+                                for (int i = (int)x1; i >= (int)x2; i -= stepSize)
+                                {
+                                    int yStep = (int)(slope * i + b);
+                                    command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, i, 10), packCommand(0x02, yStep, 10) }));
+                                }
+                            }
                         }
-                    }
-                    else if (y1 > y2) //If going from high value to low
-                    {
-                        for (int i = (int)y1; i >= (int)y2; i -= stepSize)
+                        else //If Y movement is larger than X movement
                         {
-                            int xStep = (int)(slope * i + b);
-                            command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, xStep, 10), packCommand(0x02, i, 10) }));
+                            //Calculate transposed equation
+                            numerator = x2 - x1;
+                            denominator = y2 - y1;
+
+                            slope = numerator / denominator;
+                            b = -(slope * y1 - x1);
+
+                            if (y1 < y2) //If going from low value to high
+                            {
+                                for (int i = (int)y1; i <= (int)y2; i += stepSize)
+                                {
+                                    int xStep = (int)(slope * i + b);
+                                    command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, xStep, 10), packCommand(0x02, i, 10) }));
+                                }
+                            }
+                            else if (y1 > y2) //If going from high value to low
+                            {
+                                for (int i = (int)y1; i >= (int)y2; i -= stepSize)
+                                {
+                                    int xStep = (int)(slope * i + b);
+                                    command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x01, xStep, 10), packCommand(0x02, i, 10) }));
+                                }
+                            }
                         }
+                        break;
                     }
-                }
-            }
-            else if (words[0].ToLower() == "home") //If line operator was home
-            {
-                command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x03, -1080, 0)}));
+                case "home":
+                    {
+                        command.Add(new List<pathCommand>(new pathCommand[] { packCommand(0x03, -1080, 0) }));
+                        break;
+                    }
+                case "//":
+                    {
+                        return new List<List<pathCommand>>();                        
+                    }
             }
             //Finally return the list of commands
             return command;
